@@ -23,20 +23,26 @@
 您可能会试图重写查询以使算术运算更快，同时牺牲可读性。因为MySQL会自动进行类似的优化，所以您通常可以避免这种工作，并以更易于理解和维护的形式保留查询。MySQL执行的一些优化如下:
 
 - 删除不必要的括号
+
 ```mysql
 ((a AND b) AND c OR (((a AND b) AND (c AND d))))
 -> (a AND b AND c) OR (a AND b AND c AND d)
 ```
+
 - 常量替换
+
 ```mysql
 (a<b AND b=c) AND a=5
 -> b>5 AND b=c AND a=5
 ```
+
 - 移除常量条件
+
 ```mysql
 (b>=5 AND b=5) OR (b=6 AND 5=5) OR (b=7 AND 5=6)
 -> b=5 OR b=6
 ```
+
 - 索引使用的常量表达式只计算一次。
 - `COUNT(*)`在没有WHERE的表上直接从`MyISAM`和`MEMORY`表信息中检索。当只与一个表一起使用时，这也适用于任何NOT NULL表达式。
 - 提早检测无效的常量表达式。MySQL很快检测到一些`SELECT`语句是不可能的，并且没有返回任何行。
@@ -46,11 +52,13 @@
 - - 空表或只有一行的表。
 - - 与`PRIMARY KEY`或`UNIQUE`索引上的`WHERE`子句一起使用的表，其中所有索引部分都与常量表达式进行比较并定义为`NOT NULL`。
 - - 以下所有表都用作常量表：
+
 ```mysql
 SELECT * FROM t WHERE primary_key=1;
 SELECT * FROM t1,t2
 WHERE t1.primary_key=1 AND t2.primary_key=t1.id;
 ```
+
 - 通过尝试所有可能性，可以找到连接表的最佳连接组合。 如果`ORDER BY`和`GROUP BY`子句中的所有列都来自同一个表，则在加入时首先首选该表。
 - 如果存在`ORDER BY`子句和不同的`GROUP BY`子句，或者`ORDER BY`或`GROUP BY`包含连接队列中第一个表以外的表中的列，则会创建临时表。
 - 如果使用`SQL_SMALL_RESULT`修饰符，MySQL将使用内存中的临时表。
@@ -58,6 +66,7 @@ WHERE t1.primary_key=1 AND t2.primary_key=t1.id;
 - 在某些情况下，MySQL甚至无需咨询数据文件即可从索引中读取行。 如果索引中使用的所有列都是数字，则仅使用索引树来解析查询。
 - 在输出每一行之前，将跳过与`HAVING`子句不匹配的行。
 - 一些非常快的查询示例：
+
 ```mysql
 SELECT COUNT(*) FROM tbl_name;
 SELECT MIN(key_part1),MAX(key_part1) FROM tbl_name;
@@ -65,17 +74,22 @@ SELECT MAX(key_part2) FROM tbl_name WHERE key_part1=constant;
 SELECT ... FROM tbl_name ORDER BY key_part1,key_part2,... LIMIT 10;
 SELECT ... FROM tbl_name ORDER BY key_part1 DESC, key_part2 DESC, ... LIMIT 10;
 ```
+
 - MySQL仅使用索引树解析以下查询，假设索引列是数字：
+
 ```mysql
 SELECT key_part1,key_part2 FROM tbl_name WHERE key_part1=val;
 SELECT COUNT(*) FROM tbl_name WHERE key_part1=val1 AND key_part2=val2;
 SELECT key_part2 FROM tbl_name GROUP BY key_part1;
 ```
+
 - 以下查询使用索引来按排序顺序检索行，而不使用单独的排序传递：
+
 ```mysql
 SELECT ... FROM tbl_name ORDER BY key_part1,key_part2,... ;
 SELECT ... FROM tbl_name ORDER BY key_part1 DESC, key_part2 DESC, ... ;
 ```
+
 ### 1.1.2 范围优化
 
 #### 1.1.2.1 单部分索引的范围访问方法
@@ -90,46 +104,59 @@ SELECT ... FROM tbl_name ORDER BY key_part1 DESC, key_part2 DESC, ... ;
 - 来自同一联接的`const`或`system`表的列
 - 不相关子查询的结果
 - 完全由前面类型的子表达式组成的任何表达式以下是`WHERE`子句中具有范围条件的查询的一些示例：
+
 ```mysql
 SELECT * FROM t1 WHERE key_col > 1 AND key_col < 10;
 SELECT * FROM t1 WHERE key_col = 1 OR key_col IN (15,18,20);
 SELECT * FROM t1WHERE key_col LIKE 'ab%' OR key_col BETWEEN 'bar' AND 'foo';
 ```
+
 在优化器常量传播阶段，一些非常量值可以转换为常量
 
 MySQL尝试从`WHERE`子句中为每个可能的索引提取范围条件。在提取过程中，不会使用不能用于构造范围条件的条件，组合产生重叠范围的条件，以及产生空范围的条件被移除。
 考虑下面的语句，其中`key1`是索引列，`nonkey`没有索引:
+
 ```mysql
 SELECT * FROM t1 WHERE
 (key1 < 'abc' AND (key1 LIKE 'abcde%' OR key1 LIKE '%b')) OR
 (key1 < 'bar' AND nonkey = 4) OR
 (key1 < 'uux' AND key1 > 'z');
 ```
+
 key key1的提取过程如下:
 - 1 以原WHERE子句开始:
+
 ```mysql
 (key1 < 'abc' AND (key1 LIKE 'abcde%' OR key1 LIKE '%b')) OR
 (key1 < 'bar' AND nonkey = 4) OR
 (key1 < 'uux' AND key1 > 'z')
 ```
+
 - 2 移除`nonkey = 4` 和 `key1 LIKE '%b'`，因为他们不能被应用于范围扫描。移除它们的正确方法是用`TRUE`替换它们，这样我们在进行范围扫描时不会错过任何匹配的行。 用`TRUE`替换它们会产生：
+
 ```mysql
 (key1 < 'abc' AND (key1 LIKE 'abcde%' OR TRUE)) OR
 (key1 < 'bar' AND TRUE) OR
 (key1 < 'uux' AND key1 > 'z')
 ```
+
 - 3 折叠条件始终为真或假：
 -------` (key1 LIKE 'abcde%' OR TRUE) is always true`
 -------`  (key1 < 'uux' AND key1 > 'z') is always false`
 用常数替换这些条件会产生：
+
 ```mysql
 (key1 < 'abc' AND TRUE) OR (key1 < 'bar' AND TRUE) OR (FALSE)
 ```
+
 删除不必要的TRUE和FALSE常量会产生：
+
 ```mysql
 (key1 < 'abc') OR (key1 < 'bar')
 ```
+
 - 4 将重叠的区间组合成一个区间，就得到了用于范围扫描的最终条件
+
 ```mysql
 (key1 < 'bar')
 ```
@@ -154,37 +181,48 @@ MySQL不支持合并空间索引的`range`访问方法的多个范围。 要解�
 
 以下描述更详细地说明了范围条件如何适用于多部分索引。
 - 对于HASH索引，可以使用包含相同值的每个间隔。 这意味着只能为以下形式的条件生成间隔：
+
 ```mysql
 key_part1 cmp const1
 AND key_part2 cmp const2
 AND ...
 AND key_partN cmp constN;
 ```
+
 这里，`const1，const2`，...是常量，`cmp`是`=`，`<=>`或`IS NULL`比较运算符之一，条件涵盖所有索引部分。 （也就是说，有N个条件，`N`部分索引的每个部分都有一个条件。）例如，以下是三部分`HASH`索引的范围条件：
+
 ```mysql
 key_part1 = 1 AND key_part2 IS NULL AND key_part3 = 'foo'
 ```
 
 - 对于`BTREE`索引，间隔可以用于与`AND`组合的条件，其中每个条件使用`=`，`<=>`，`IS NULL`，`>`，`<`，`>=`，`<=`，`!=`， `<>`，`BETWEEN`或`LIKE'pattern'`（其中`'pattern'`不以通配符开头）来比较关键部分和常量值。 可以使用间隔，只要可以确定包含与条件匹配的所有行的单个密钥元组（或者如果使用`<>`或`!=`则为两个间隔）。
 - 只要比较运算符为`=`，`<=>`或`IS NULL`，优化程序就会尝试使用其他关键部分来确定间隔。 如果运算符是`>`，`<`，`>=`，`<=`，`!=`，`<>`，`BETWEEN`或`LIKE`，优化程序将使用它，但不再考虑关键部分。对于以下表达式，优化程序使用`=`来自第一次比较。它还使用了来自第二次比较的`>=`，但没有考虑其他关键部分，也没有使用第三个比较进行间隔构造：
+
 ```mysql
 key_part1 = 'foo' AND key_part2 >= 10 AND key_part3 > 10
 ```
+
 单区间为:
+
 ```mysql
 ('foo',10,-inf) < (key_part1,key_part2,key_part3) < ('foo',+inf,+inf)
 ```
+
 创建的间隔可能包含比初始条件更多的行。 例如，前面的间隔包括值（'foo'，11,0），它不满足原始条件。
 
 - 如果覆盖区间中包含的行集的条件与`OR`组合，则它们形成一个条件，该条件覆盖其间隔的并集中包含的一组行。如果条件是与`AND`结合，它们形成一个条件，覆盖其间隔交集中包含的一组行。例如，对于这个由两部分组成的索引：
+
 ```mysql
 (key_part1 = 1 AND key_part2 < 2) OR (key_part1 > 5)
 ```
+
 间隔是：
+
 ```mysql
 (1,-inf) < (key_part1,key_part2) < (1,2)
 (5,-inf) < (key_part1,key_part2)
 ```
+
 在此示例中，第一行的间隔使用左边界的一个关键部分和右边界的两个关键部分。 第二行的间隔仅使用一个关键部分。 `key_len`列中的`EXPLAIN`输出表示使用的密钥前缀的最大长度。
 
 在某些情况下，`key_len`可能表示使用了一个关键部分，但这可能不是您所期望的。假设`key_part1`和`key_part2`可以为`NULL`。然后`key_len`列显示以下条件的两个关键部分长度：
@@ -192,7 +230,9 @@ key_part1 = 'foo' AND key_part2 >= 10 AND key_part3 > 10
 ```mysql
 key_part1 >= 1 AND key_part2 < 2
 ```
+
 但是，事实上，条件被转换为:
+
 ```mysql
 key_part1 >= 1 AND key_part2 IS NOT NULL
 ```
@@ -200,6 +240,7 @@ key_part1 >= 1 AND key_part2 IS NOT NULL
 #### 1.1.2.3 多值比较的等价范围优化
 
 考虑这些表达式，其中col_name是索引列：
+
 ```mysql
 col_name IN(val1, ..., valN)
 col_name = val1 OR ... OR col_name = valN
@@ -226,13 +267,17 @@ index dive提供准确的行估计，但随着表达式中比较值的数量增�
 ###$ 1.1.2.4 行构造函数表达式的范围优化
 
 优化器能够将范围扫描访问方法应用于此表单的查询：
+
 ```mysql
 SELECT ... FROM t1 WHERE ( col_1, col_2 ) IN (( 'a', 'b' ), ( 'c', 'd' ));
 ```
+
 以前，要使用范围扫描，需要将查询写为:
+
 ```mysql
 SELECT ... FROM t1 WHERE ( col_1 = 'a' AND col_2 = 'b' ) OR ( col_1 = 'c' AND col_2 = 'd' );
 ```
+
 优化器要使用范围扫描，查询必须满足以下条件:
 - 只使用谓词`IN()`，而不是`not IN()`。
 - 在IN()谓词的左侧，行构造函数只包含列引用。
@@ -253,21 +298,26 @@ SELECT ... FROM t1 WHERE ( col_1 = 'a' AND col_2 = 'b' ) OR ( col_1 = 'c' AND co
 
 要估计处理范围表达式所需的内存量，请使用以下准则:
 - 对于诸如以下的简单查询，其中有一个候选键用于范围访问方法，每个谓词与OR组合使用大约230个字节：
+
 ```mysql
 SELECT COUNT(*) FROM t
 WHERE a=1 OR a=2 OR a=3 OR .. . a=N;
 ```
+
 - 类似地，对于诸如以下的查询，每个与AND组合的谓词使用大约125个字节：
+
 ```mysql
 SELECT COUNT(*) FROM t
 WHERE a=1 AND b=1 AND c=1 ... N;
 ```
 
 - 对于使用IN（）谓词的查询：
+
 ```mysql
 SELECT COUNT(*) FROM t
 WHERE a IN (1,2, ..., M) AND b IN (1,2, ..., N);
 ```
+
 IN（）列表中的每个文字值都计为与OR结合的谓词。 如果有两个IN（）列表，则与OR组合的谓词数是每个列表中文字值数的乘积。
 因此，在前一种情况下与OR组合的谓词数是M×N。
 
@@ -293,16 +343,20 @@ SELECT * FROM t1, t2
 WHERE t1.key1 = 1
 AND (t2.key1 = t1.some_col OR t2.key2 = t1.some_col2);
 ```
+
 **注意：索引合并优化算法有以下已知的局限性:**
 - 如果您的查询具有带有深度AND / OR嵌套的复杂WHERE子句，并且MySQL未选择最佳计划，请尝试使用以下标识转换来分发术语：
+
 ```mysql
 (x AND y) OR z => (x OR z) AND (y OR z)
 (x OR y) AND z => (x AND z) OR (y AND z)
 ```
+
 - 索引合并不适用于全文索引。
 
 在`EXPLAIN`输出中，索引合并方法在类型列中显示为`index_merge`。 在这种情况下，键列包含使用的索引列表，`key_len`包含最长键的列表这些索引的部分。
 索引合并访问方法有几种算法，它们显示在解释输出：
+
 - Using intersect(...)
 - Using union(...)
 - Using sort_union(...)
@@ -314,22 +368,28 @@ AND (t2.key1 = t1.some_col OR t2.key2 = t1.some_col2);
 
 当WHERE子句在与AND组合的不同键上转换为多个范围条件时，此访问算法适用，并且每个条件是以下之一：
 - 这种形式的`N-part`表达式，其中索引具有正好`N`个部分（即，所有索引部分都被覆盖）：
+
 ```mysql
 key_part1 = const1 AND key_part2 = const2 ... AND key_partN = constN
 ```
+
 - InnoDB表的主键上的任何范围条件。
+
 ```mysql
 SELECT * FROM innodb_table
 WHERE primary_key < 10 AND key_col1 = 20;
 SELECT * FROM tbl_name
 WHERE key1_part1 = 1 AND key1_part2 = 2 AND key2 = 2;
 ```
+
 索引合并交集算法对所有使用的索引执行同时扫描，并生成从合并索引扫描接收的行序列的交集。
 
 如果查询中使用的所有列都被使用的索引覆盖，则不会检索完整的表行（在这种情况下，`EXPLAIN`输出包含在`Extra`字段中`Using index`）。 以下是此类查询的示例：
+
 ```mysql
 SELECT COUNT(*) FROM t1 WHERE key1 = 1 AND key2 = 1;
 ```
+
 如果使用的索引未涵盖查询中使用的所有列，则仅在满足所有使用的键的范围条件时才检索完整行。
 如果其中一个合并条件是`InnoDB`表的主键上的条件，则它不用于行检索，而是用于过滤掉使用其他条件检索的行。
 
@@ -338,11 +398,14 @@ SELECT COUNT(*) FROM t1 WHERE key1 = 1 AND key2 = 1;
 该算法的标准类似于索引合并交集算法的标准。 当表的WHERE子句转换为多个范围条件时，该算法适用不同的键与OR组合，每个条件是以下之一：
 
 - 这种形式的`N-part`表达式，其中索引具有正好`N`个部分（即，所有索引部分都被覆盖）：
+
 ```mysql
 key_part1 = const1 AND key_part2 = const2 ... AND key_partN = constN
 ```
+
 - InnoDB表的主键上的任何范围条件。
 - 索引合并交集算法适用的条件。
+
 ```mysql
 SELECT * FROM t1
 WHERE key1 = 1 OR key2 = 2 OR key3 = 3;
@@ -354,12 +417,14 @@ OR (key3 = 'foo' AND key4 = 'bar') AND key5 = 5;
 #### 1.1.3.3 索引合并排序联合访问算法
 
 当WHERE子句转换为由OR组合的多个范围条件时，此访问算法适用，但索引合并联合算法不适用。
+
 ```mysql
 SELECT * FROM tbl_name
   WHERE key_col1 < 10 OR key_col2 < 20;
 SELECT * FROM tbl_name
   WHERE (key_col1 > 10 OR key_col2 = 20) AND nonkey_col = 30;
 ```
+
 sort-union算法和union算法的区别在于，sort-union算法必须首先获取所有行的行id，并在返回任何行之前对它们进行排序。
 
 
@@ -396,17 +461,20 @@ sort-union算法和union算法的区别在于，sort-union算法必须首先获�
 EXPLAIN输出显示`Using index condition`下推时在`Extra`列中使用索引条件。 它不显示`Using index`，因为当必须读取完整的表行时，这不适用。
 
 假设一个表包含关于人和他们的地址的信息，并且这个表有一个索引定义为`index (zipcode, lastname, firstname)`。如果我们知道一个人的邮编值，但不确定他的姓，我们可以这样搜索:
+
 ```mysql
 SELECT * FROM people
 WHERE zipcode='95054'
 AND lastname LIKE '%etrunia%'
 AND address LIKE '%Main Street%';
 ```
+
 MySQL可以使用索引来扫描`zipcode ='95054'`的人。 第二部分（`lastname LIKE '%etrunia%'`）不能用于限制必须扫描的行数，因此如果没有Index Condition Pushdown，此查询必须为所有拥有`zipcode ='95054'`的人检索完整的表行。
 
 使用索引条件下推，MySQL在读取整个表行之前检查`lastname LIKE '%etrunia%' `部分。 这样可以避免读取与`zipcode`条件匹配的索引元组对应的完整行，但不会读取`lastname`条件。
 
 默认情况下启用索引条件下推。 可以使用`optimizer_switch`系统变量通过设置`index_condition_pushdown`标志来控制它：
+
 ```mysql
 SET optimizer_switch = 'index_condition_pushdown=off';
 SET optimizer_switch = 'index_condition_pushdown=on';
@@ -419,27 +487,34 @@ SET optimizer_switch = 'index_condition_pushdown=on';
 ### 1.1.7 嵌套连接优化
 
 与SQL标准相比，扩展了`table_factor`的语法。 后者只接受`table_reference`，而不是一对括号内的列表。 如果我们将`table_reference`项列表中的每个逗号视为等效于内连接，则这是一个保守的扩展。 例如：
+
 ```mysql
 SELECT * FROM t1 LEFT JOIN (t2, t3, t4)
 ON (t2.a=t1.a AND t3.b=t1.b AND t4.c=t1.c)
 ```
 
 相当于
+
 ```mysql
 SELECT * FROM t1 LEFT JOIN (t2 CROSS JOIN t3 CROSS JOIN t4)
 ON (t2.a=t1.a AND t3.b=t1.b AND t4.c=t1.c)
 ```
+
 在MySQL中，`CROSS JOIN`在语法上等同于`INNER JOIN`; 他们可以互相替换。 在标准SQL中，它们不等效。 `INNER JOIN`与ON子句一起使用; 否则使用`CROSS JOIN`。
 通常，在仅包含内部联接操作的联接表达式中可以忽略括号。 考虑这个连接表达式：
+
 ```mysql
 t1 LEFT JOIN (t2 LEFT JOIN t3 ON t2.b=t3.b OR t2.b IS NULL)
 ON t1.a=t2.a
 ```
+
 删除括号并将操作分组到左边后，join表达式转换为如下表达式:
+
 ```mysql
 (t1 LEFT JOIN t2 ON t1.a=t2.a) LEFT JOIN t3
 ON t2.b=t3.b OR t2.b IS NULL
 ```
+
 然而，这两个表达并不相同。 为此，假设表t1，t2和t3具有以下状态
 
 - 表1包含了行 `(1)，(2)` 
