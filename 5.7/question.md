@@ -5,3 +5,9 @@ the nested-loop join executes a query (see Section 8.2.1.6, “Nested-Loop Join 
 that a join query over 3 tables T1,T2,T3 has this form:之后的暂停掉
 
 ### 1.4.1 优化INSERT语句 P1275
+
+chapter8.4
+    8.4.1 Optimizing Data Size
+        joins(第一段)
+    8.4.4   EXPLAIN will not necessarily say Using temporary for derived or materialized temporary tables.    
+        
