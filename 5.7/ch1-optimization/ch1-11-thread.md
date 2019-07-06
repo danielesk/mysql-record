@@ -506,11 +506,79 @@ Unused.
 
 ## 11.6 复制从SQL线程状态
 
+以下列表显示了您可能在从属服务器SQL线程的State列中看到的最常见状态：
 
+• Killing slave
+该线程正在处理`STOP SLAVE`语句。
+• Making temporary file (append) before replaying LOAD DATA INFILE
+线程正在执行LOAD DATA语句，并将数据附加到包含从属将从中读取行的数据的临时文件。
 
+• Making temporary file (create) before replaying LOAD DATA INFILE
+该线程正在执行`LOAD DATA`语句，并且正在创建一个临时文件，其中包含从属将从中读取行的数据。只有在运行MySQL版本低于MySQL 5.0.3的主服务器记录原始`LOAD DATA`语句时才会遇到此状态。
 
+• Reading event from the relay log
+线程已从中继日志中读取事件，以便可以处理事件。
 
+• Slave has read all relay log; waiting for more updates
+该线程已处理中继日志文件中的所有事件，现在正在等待I / O线程将新事件写入中继日志。
 
+• Waiting for an event from Coordinator
+使用多线程从站（`slave_parallel_workers`大于`1`），其中一个从属工作线程正在等待来自协调器线程的事件。
+
+• Waiting for slave mutex on exit
+线程停止时发生的非常短暂的状态。
+
+• Waiting for Slave Workers to free pending events
+当Workers正在处理的事件的总大小超过`slave_pending_jobs_size_max`系统变量的大小时，会发生此等待操作。当大小低于此限制时，协调器将恢复计划。仅当`slave_parallel_workers`设置为大于`0`时才会出现此状态。
+
+• Waiting for the next event in relay log
+从中继日志中读取事件之前的初始状态。
+
+• Waiting until MASTER_DELAY seconds after master executed event
+SQL线程已读取事件，但正在等待从属延迟失效。使用`CHANGE MASTER TO`的MASTER_DELAY选项设置此延迟。
+SQL线程的`Info`列也可能显示语句的文本。这表明线程已从中继日志中读取事件，从中提取语句，并可能正在执行它。
+
+## 11.7 复制从属连接线程状态
+
+这些线程状态出现在复制从属服务器上，但与连接线程相关联，而不是与I / O或SQL线程相关联。
+
+• Changing master
+该线程正在处理`CHANGE MASTER TO`语句。
+
+• Killing slave
+该线程正在处理`STOP SLAVE`语句。
+
+• Opening master dump table
+This state occurs after `Creating table from master dump`.
+
+• Reading master dump table data
+This state occurs after `Opening master dump table`.
+
+• Rebuilding the index on master dump table
+This state occurs after `Reading master dump table data`.
+
+## 11.8  NDB Cluster Thread States
+
+..........
+
+##11.9 事件调度程序线程状态
+
+这些状态发生在`Event Scheduler`线程，为执行调度事件而创建的线程或终止调度程序的线程中。
+
+• Clearing
+调度程序线程或正在执行事件的线程正在终止并即将结束。
+
+• Initialized
+调度程序线程或将执行事件的线程已初始化。
+
+• Waiting for next activation
+调度程序具有非空事件队列，但下一次激活是将来的。
+
+• Waiting for scheduler to stop
+线程发出`SET GLOBAL event_scheduler = OFF`并等待调度程序停止。
+
+• Waiting on empty queue
+调度程序的事件队列为空并且正在休眠。
 
 
 
