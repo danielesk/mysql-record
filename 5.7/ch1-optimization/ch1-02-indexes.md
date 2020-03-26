@@ -496,6 +496,7 @@ Message: /* select#1 */ select `test`.`t1`.`f1` AS `f1`,`test`.`t1`.`gc`
 ```mysql
 doc_name TEXT AS (JSON_EXTRACT(jdoc, '$.name')) STORED
 ```
+
 这样写:
 
 ```mysql
@@ -544,6 +545,7 @@ mysql> SELECT ts FROM tstable;
 ```
 
 `注意：`
+
 要使用`'MET'`或`'Europe/Amsterdam'`等指定时区，必须正确设置时区表。
 ---
 
@@ -626,6 +628,5 @@ WHERE ts = '2018-10-28 02:30:00';
 +---------------------+
 ```
 
+
 对于两个方向上的时区转换，同样缺少一对一映射也会出现在其他上下文中，例如使用`FROM_UNIXTIME()`和`UNIX_TIMESTAMP()`函数执行的转换。
-
-
